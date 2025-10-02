@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV APP_HOME=/app
+ENV PYTHONPATH=/app:$PYTHONPATH
 ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 
 # Install system dependencies
@@ -64,4 +65,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
 # Default command
-CMD ["streamlit", "run", "web/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
