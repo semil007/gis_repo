@@ -92,6 +92,42 @@ class ProcessingPipeline:
             )
             logger.critical(f"Failed to initialize processing pipeline: {error_info.error_id}")
             raise
+    
+    def _register_services(self):
+        """Register services for health monitoring and management."""
+        try:
+            # Check if degradation_manager exists and has register_service method
+            if not hasattr(self, 'degradation_manager') or not hasattr(self.degradation_manager, 'register_service'):
+                logger.info("Degradation manager not available, skipping service registration")
+                return
+                
+            # Register core services with the degradation manager
+            services = {
+                'document_processor': lambda: True,
+                'nlp_pipeline': lambda: True,
+                'data_validator': lambda: True,
+                'quality_assessment': lambda: True,
+                'audit_manager': lambda: True,
+                'csv_generator': lambda: True,
+                'file_storage': lambda: True,
+                'session_manager': lambda: True,
+                'queue_manager': lambda: True
+            }
+            
+            # Register each service with the degradation manager
+            registered_count = 0
+            for service_name, health_check in services.items():
+                try:
+                    self.degradation_manager.register_service(service_name, health_check)
+                    registered_count += 1
+                except Exception as service_error:
+                    logger.warning(f"Failed to register service {service_name}: {service_error}")
+                    
+            logger.info(f"Registered {registered_count}/{len(services)} services for health monitoring")
+            
+        except Exception as e:
+            logger.warning(f"Failed to register services for health monitoring: {e}")
+            # Don't raise here as this is not critical for basic functionality
         
     async def process_document_async(
         self, 
