@@ -261,6 +261,59 @@ class StreamlitApp:
         st.session_state.uploaded_file = None
         st.session_state.processing_results = None
         
+    def render_results_interface(self):
+        """Render results interface with extracted data and download options."""
+        st.header("✅ Processing Complete")
+        
+        if not st.session_state.processing_results:
+            st.warning("No results available")
+            return
+            
+        results = st.session_state.processing_results
+        records = results.get('records', [])
+        
+        # Summary metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Records Extracted", len(records))
+        with col2:
+            st.metric("Average Confidence", f"{results.get('avg_confidence', 0):.1%}")
+        with col3:
+            st.metric("Processing Time", f"{results.get('processing_time', 0):.1f}s")
+            
+        st.divider()
+        
+        # Display extracted records
+        if records:
+            st.subheader("📋 Extracted Records")
+            st.dataframe(records, use_container_width=True)
+            
+            # Download button
+            import pandas as pd
+            df = pd.DataFrame(records)
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name=f"hmo_data_{st.session_state.session_id[:8]}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+        else:
+            st.info("No records were extracted from the document")
+            
+        # Action buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("📤 Process Another File", use_container_width=True):
+                st.session_state.processing_status = 'idle'
+                st.session_state.uploaded_file = None
+                st.rerun()
+        with col2:
+            if st.button("🔄 Reset Session", use_container_width=True):
+                self.reset_session()
+                st.rerun()
+                
     def render_error_interface(self):
         """Render error interface with recovery options."""
         st.header("❌ Processing Error")
