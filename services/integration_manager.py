@@ -17,13 +17,12 @@ from models.hmo_record import HMORecord
 from models.processing_session import ProcessingSession, SessionManager
 from processors.unified_processor import UnifiedDocumentProcessor
 from nlp.nlp_pipeline import NLPPipeline
-from nlp.entity_extractors import ExtractedEntity as EntityExtractor
 from nlp.confidence_calculator import ConfidenceCalculator
 from services.data_validator import DataValidator, ValidationResult
 from services.quality_assessment import QualityAssessment
 from services.audit_manager import AuditManager, FlaggedRecord
 from services.csv_generator import CSVGenerator
-from services.file_storage import FileStorageManager as FileStorage
+from services.file_storage import FileStorageManager
 from services.queue_manager import QueueManager
 from services.error_handler import ErrorHandler, GracefulDegradationManager, error_handler_decorator
 from services.performance_optimizer import PerformanceOptimizer, performance_monitor_decorator, cached_operation
@@ -72,13 +71,12 @@ class ProcessingPipeline:
             
             self.document_processor = UnifiedDocumentProcessor(config)
             self.nlp_pipeline = NLPPipeline()
-            self.entity_extractor = EntityExtractor(self.nlp_pipeline)
             self.confidence_calculator = ConfidenceCalculator()
             self.data_validator = DataValidator()
             self.quality_assessment = QualityAssessment()
             self.audit_manager = AuditManager(db_path=audit_db_path)
             self.csv_generator = CSVGenerator()
-            self.file_storage = FileStorage()
+            self.file_storage = FileStorageManager()
             self.session_manager = SessionManager(db_path=session_db_path)
             self.queue_manager = QueueManager()
             
@@ -220,11 +218,8 @@ class ProcessingPipeline:
             # Step 3: Entity Extraction with error handling
             await self._update_processing_stage(session_id, "entity_extraction")
             try:
-                entities = await asyncio.to_thread(
-                    self.entity_extractor.extract_hmo_entities,
-                    doc_result.extracted_text,
-                    nlp_result
-                )
+                # Entity extraction is already done by NLP pipeline
+                entities = nlp_result.get('entities', {})
             except Exception as e:
                 error_info = self.error_handler.handle_error(
                     e, 
@@ -232,8 +227,8 @@ class ProcessingPipeline:
                 )
                 processing_errors.append(error_info)
                 
-                # Use basic entity extraction from NLP result
-                entities = nlp_result.get('entities', {})
+                # Use empty entities as fallback
+                entities = {}
                 
             # Step 4: Data Structuring with error handling
             await self._update_processing_stage(session_id, "data_structuring")

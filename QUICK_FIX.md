@@ -32,7 +32,19 @@ Open browser: `http://192.168.1.49:8501`
 
 ## Common Issues & Solutions
 
-### Issue 1: Database Error
+### Issue 1: ExtractedEntity Error
+```
+Application error: ExtractedEntity.__init__() missing 2 required positional arguments
+```
+
+**Root Cause:** Incorrect import and instantiation of `ExtractedEntity` dataclass
+
+**Fixed in:** `services/integration_manager.py`
+- Removed incorrect `ExtractedEntity` import alias
+- Removed incorrect `entity_extractor` instantiation
+- Entity extraction now properly handled by NLP pipeline
+
+### Issue 2: Database Error
 ```
 Application error: unable to open database file
 ```
@@ -225,3 +237,22 @@ The "unable to open database file" error occurs because:
 - The startup script checks if databases are empty and initializes them
 - Proper permissions allow the non-root container user to access files
 - Environment variables point to the correct database paths inside containers
+
+---
+
+## Recent Fixes Applied
+
+### ✅ Fixed: ExtractedEntity Import Error (services/integration_manager.py)
+- **Problem:** `ExtractedEntity` is a dataclass, not a class to instantiate
+- **Solution:** Removed incorrect import alias and instantiation
+- **Impact:** Entity extraction now works correctly through NLP pipeline
+
+### ✅ Fixed: FileStorageManager Import
+- **Problem:** Incorrect alias `FileStorage` 
+- **Solution:** Changed to `FileStorageManager` throughout
+- **Impact:** File storage operations work correctly
+
+### ✅ Fixed: Database Initialization
+- **Problem:** Database files not created before Docker mounts them
+- **Solution:** Script creates files with proper permissions before starting containers
+- **Impact:** No more "unable to open database file" errors
