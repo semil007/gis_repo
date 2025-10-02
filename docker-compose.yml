@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Redis service for queue management
+  redis:
+    image: redis:7-alpine
+    container_name: hmo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Main application service
+  app:
+    build: .
+    container_name: hmo-processor
+    restart: unless-stopped
+    ports:
+      - "8501:8501"  # Streamlit web interface
+      - "8000:8000"  # FastAPI endpoints
+    volumes:
+      - ./uploads:/app/uploads
+      - ./downloads:/app/downloads
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+      - ./processing_sessions.db:/app/processing_sessions.db
+      - ./audit_data.db:/app/audit_data.db
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///app/processing_sessions.db
+      - AUDIT_DATABASE_URL=sqlite:///app/audit_data.db
+      - UPLOAD_DIR=/app/uploads
+      - DOWNLOAD_DIR=/app/downloads
+      - TEMP_DIR=/app/temp
+      - LOG_LEVEL=INFO
+      - MAX_FILE_SIZE=104857600  # 100MB
+      - SESSION_TIMEOUT=3600     # 1 hour
+      - CLEANUP_INTERVAL=86400   # 24 hours
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Queue worker service for background processing
+  worker:
+    build: .
+    container_name: hmo-worker
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/app/uploads
+      - ./downloads:/app/downloads
+      - ./temp:/app/temp
+      - ./logs:/app/logs
+      - ./processing_sessions.db:/app/processing_sessions.db
+      - ./audit_data.db:/app/audit_data.db
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=sqlite:///app/processing_sessions.db
+      - AUDIT_DATABASE_URL=sqlite:///app/audit_data.db
+      - UPLOAD_DIR=/app/uploads
+      - DOWNLOAD_DIR=/app/downloads
+      - TEMP_DIR=/app/temp
+      - LOG_LEVEL=INFO
+      - WORKER_CONCURRENCY=2
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["python3", "services/queue_worker.py"]
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: hmo-network
