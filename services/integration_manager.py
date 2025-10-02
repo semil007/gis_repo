@@ -54,16 +54,27 @@ class ProcessingPipeline:
         
         # Initialize core components with error handling
         try:
+            # Get database paths from environment
+            import os
+            session_db_path = os.getenv('DATABASE_URL', 'sqlite:///processing_sessions.db')
+            audit_db_path = os.getenv('AUDIT_DATABASE_URL', 'sqlite:///audit_data.db')
+            
+            # Remove sqlite:/// prefix if present
+            if session_db_path.startswith('sqlite:///'):
+                session_db_path = session_db_path.replace('sqlite:///', '')
+            if audit_db_path.startswith('sqlite:///'):
+                audit_db_path = audit_db_path.replace('sqlite:///', '')
+            
             self.document_processor = UnifiedDocumentProcessor(config)
             self.nlp_pipeline = NLPPipeline()
             self.entity_extractor = EntityExtractor(self.nlp_pipeline)
             self.confidence_calculator = ConfidenceCalculator()
             self.data_validator = DataValidator()
             self.quality_assessment = QualityAssessment()
-            self.audit_manager = AuditManager()
+            self.audit_manager = AuditManager(db_path=audit_db_path)
             self.csv_generator = CSVGenerator()
             self.file_storage = FileStorage()
-            self.session_manager = SessionManager()
+            self.session_manager = SessionManager(db_path=session_db_path)
             self.queue_manager = QueueManager()
             
             # Register services for health monitoring

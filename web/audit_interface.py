@@ -26,8 +26,20 @@ class AuditInterface:
     
     def __init__(self):
         """Initialize audit interface with required managers."""
-        self.audit_manager = AuditManager()
-        self.session_manager = SessionManager()
+        import os
+        
+        # Get database paths from environment
+        session_db_path = os.getenv('DATABASE_URL', 'sqlite:///processing_sessions.db')
+        audit_db_path = os.getenv('AUDIT_DATABASE_URL', 'sqlite:///audit_data.db')
+        
+        # Remove sqlite:/// prefix if present
+        if session_db_path.startswith('sqlite:///'):
+            session_db_path = session_db_path.replace('sqlite:///', '')
+        if audit_db_path.startswith('sqlite:///'):
+            audit_db_path = audit_db_path.replace('sqlite:///', '')
+        
+        self.audit_manager = AuditManager(db_path=audit_db_path)
+        self.session_manager = SessionManager(db_path=session_db_path)
         self.record_editor = RecordEditor(self.audit_manager)
         self.audit_tracker = AuditTracker(self.audit_manager, self.session_manager)
         

@@ -1,6 +1,25 @@
-# 🚀 QUICK FIX - Module Import Error
+# 🚀 QUICK FIX GUIDE
 
-## The Problem
+## Common Issues & Solutions
+
+### Issue 1: Database Error
+```
+Application error: unable to open database file
+```
+
+**Solution (10 seconds):**
+```bash
+python init_databases.py
+```
+
+Then restart your app:
+```bash
+streamlit run app.py
+```
+
+---
+
+### Issue 2: Module Import Error
 ```
 ModuleNotFoundError: No module named 'models'
 ```
