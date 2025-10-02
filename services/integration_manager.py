@@ -79,7 +79,11 @@ class ProcessingPipeline:
             self.csv_generator = CSVGenerator()
             self.file_storage = FileStorageManager()
             self.session_manager = SessionManager(db_path=session_db_path)
-            self.queue_manager = QueueManager()
+            try:
+                self.queue_manager = QueueManager()
+            except Exception as e:
+                logger.warning(f"Could not initialize QueueManager: {e}. The worker process will not be able to connect.")
+                self.queue_manager = None
             
             # Register services for health monitoring
             self._register_services()

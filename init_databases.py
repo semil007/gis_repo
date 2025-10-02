@@ -47,7 +47,7 @@ def init_databases():
         # Initialize session database
         print("\n1. Initializing session database...")
         session_manager = SessionManager(db_path=session_db_path)
-        print("   ✓ Session database initialized successfully")
+        print("   OK: Session database initialized successfully")
         
         # Get database stats
         stats = session_manager.get_database_stats()
@@ -55,21 +55,21 @@ def init_databases():
         print(f"   - Total records: {stats['total_records']}")
         
     except Exception as e:
-        print(f"   ✗ Error initializing session database: {e}")
+        print(f"   ERROR: Error initializing session database: {e}")
         return False
     
     try:
         # Initialize audit database
         print("\n2. Initializing audit database...")
         audit_manager = AuditManager(db_path=audit_db_path)
-        print("   ✓ Audit database initialized successfully")
+        print("   OK: Audit database initialized successfully")
         
     except Exception as e:
-        print(f"   ✗ Error initializing audit database: {e}")
+        print(f"   ERROR: Error initializing audit database: {e}")
         return False
     
     print("\n" + "="*60)
-    print("✓ All databases initialized successfully!")
+    print("OK: All databases initialized successfully!")
     print("="*60)
     print("\nYou can now run the application:")
     print("  streamlit run app.py")

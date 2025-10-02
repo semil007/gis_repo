@@ -1,9 +1,11 @@
- Processing Error
 Error: An unknown error occurred
 
 Session ID: Unknown
 
 🔧 What you can do:
+
+
+
 
 ❌ System components are experiencing issues
 
@@ -18,3 +20,4 @@ System Component Status
 ❌ audit_manager: failed
 
 ❌ file_storage: failed
+
