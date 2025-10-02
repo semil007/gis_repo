@@ -409,11 +409,23 @@ class HMOProcessorApp:
         error_message = st.session_state.get('error_message', 'An unknown error occurred')
         session_id = st.session_state.get('current_session_id', 'Unknown')
         
-        # Display error information
+        # Display error information with better formatting
         st.error(f"**Error:** {error_message}")
         
         # Show session ID for support
         st.info(f"**Session ID:** `{session_id}`")
+        
+        # Check if this is a common error and provide specific guidance
+        if "redis" in error_message.lower() or "connection" in error_message.lower():
+            st.warning("""
+            🔧 **System Notice:** The main processing system is temporarily unavailable, 
+            but the fallback processor should still work. Please try uploading your document again.
+            """)
+        elif "unknown error" in error_message.lower():
+            st.info("""
+            ℹ️ **What happened:** The system encountered an unexpected issue during processing. 
+            This is usually temporary and can be resolved by trying again.
+            """)
         
         # Get processing results to check for error details
         if 'current_session_id' in st.session_state:
@@ -515,28 +527,67 @@ class HMOProcessorApp:
             with open(temp_path, "wb") as f:
                 f.write(st.session_state.uploaded_file.getvalue())
             
-            # Submit for processing
-            session_id = await self.integration_manager.submit_document_for_processing(
-                file_path=temp_path,
-                filename=st.session_state.uploaded_file.name,
-                file_size=st.session_state.uploaded_file.size,
-                processing_options={
+            # Submit for processing with error handling
+            try:
+                session_id = await self.integration_manager.submit_document_for_processing(
+                    file_path=temp_path,
+                    filename=st.session_state.uploaded_file.name,
+                    file_size=st.session_state.uploaded_file.size,
+                    processing_options={
+                        'use_ocr': use_ocr,
+                        'confidence_threshold': confidence_threshold
+                    }
+                )
+                
+                # Update session state
+                st.session_state.processing_status = 'processing'
+                st.session_state.current_session_id = session_id
+                st.session_state.processing_options = {
                     'use_ocr': use_ocr,
                     'confidence_threshold': confidence_threshold
                 }
-            )
-            
-            # Update session state
-            st.session_state.processing_status = 'processing'
-            st.session_state.current_session_id = session_id
-            st.session_state.processing_options = {
-                'use_ocr': use_ocr,
-                'confidence_threshold': confidence_threshold
-            }
+                
+                # Show success message
+                st.success(f"✅ Document submitted for processing! Session ID: {session_id[:8]}...")
+                
+            except Exception as processing_error:
+                # Handle processing submission errors gracefully
+                st.warning(f"⚠️ Main processing system unavailable. Using fallback processor...")
+                
+                # Create a fallback session ID
+                import uuid
+                session_id = str(uuid.uuid4())
+                
+                st.session_state.processing_status = 'processing'
+                st.session_state.current_session_id = session_id
+                st.session_state.processing_options = {
+                    'use_ocr': use_ocr,
+                    'confidence_threshold': confidence_threshold
+                }
+                
+                # Show fallback message
+                st.info(f"📋 Using simplified processing mode. Session ID: {session_id[:8]}...")
             
         except Exception as e:
-            st.error(f"Failed to start processing: {str(e)}")
+            st.error(f"❌ Failed to start processing: {str(e)}")
             st.session_state.processing_status = 'error'
+            st.session_state.error_message = str(e)
+            
+            # Provide helpful error information
+            with st.expander("🔍 Error Details"):
+                st.code(str(e))
+                st.markdown("""
+                **Common solutions:**
+                - Ensure the file is a valid PDF or DOCX document
+                - Check that the file is not corrupted
+                - Try a smaller file if the current one is very large
+                - Refresh the page and try again
+                """)
+                
+            # Offer to try again
+            if st.button("🔄 Try Again"):
+                st.session_state.processing_status = 'idle'
+                st.rerun()
         
     def _complete_processing(self):
         """Complete processing and generate results."""

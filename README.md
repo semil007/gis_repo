@@ -4,26 +4,78 @@
 
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.8+-green?logo=python)](https://www.python.org/)
+[![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04-orange?logo=ubuntu)](https://ubuntu.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🚀 Quick Start (1-Minute Setup)
+## 🚀 Quick Start for Ubuntu Server
 
-### For Ubuntu Server (Recommended)
+### Prerequisites
+- Ubuntu 18.04+ (Recommended: Ubuntu 22.04 LTS)
+- Internet connection for initial setup
+- Sudo privileges
+
+### 🎯 Recommended: Automatic Deployment
 
 ```bash
-# 1. Clone and enter directory
-git clone <your-repository-url>
+# Clone repository and deploy automatically
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
 cd hmo-document-processor
-
-# 2. One-command deployment
-chmod +x start-docker.sh && ./start-docker.sh
-
-# 3. Access application
-# Local: http://localhost:8501
-# Remote: http://YOUR_SERVER_IP:8501
+chmod +x scripts/start.sh && ./scripts/start.sh
 ```
 
-**That's it!** The script automatically installs Docker, builds containers, and starts all services.
+**What this does:**
+- ✅ Auto-detects Docker or native Python deployment
+- ✅ Installs dependencies automatically
+- ✅ Configures services and databases
+- ✅ Starts the application with proper settings
+- ✅ Shows management commands and access URLs
+
+### 🐳 Docker Deployment (Recommended for Production)
+
+```bash
+# Clone and start with Docker
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+chmod +x scripts/start.sh && ./scripts/start.sh --docker
+```
+
+### 💻 Native Python Deployment (Recommended for Development)
+
+```bash
+# Clone and start with native Python
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+chmod +x scripts/start.sh && ./scripts/start.sh --native
+```
+
+### 🔧 Manual Setup (If Automatic Fails)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+
+# 2. Install system dependencies
+sudo apt-get update && sudo apt-get install -y \
+    python3 python3-pip python3-venv \
+    tesseract-ocr tesseract-ocr-eng \
+    redis-server git curl wget
+
+# 3. Setup Python environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+
+# 4. Initialize and start
+python fix_setup.py
+python start_app.py
+```
+
+### 📱 Access Application
+- **Local**: http://localhost:8501
+- **Remote**: http://YOUR_SERVER_IP:8501
+- **SSH Tunnel**: `ssh -L 8501:localhost:8501 user@server_ip`
 
 ## ✨ Features
 
@@ -48,81 +100,109 @@ chmod +x start-docker.sh && ./start-docker.sh
 | **Storage** | 10 GB | 50+ GB SSD |
 | **Network** | Internet for setup | Stable connection |
 
-## 🛠️ Installation Options
+## 🛠️ Deployment Options for Ubuntu Server
 
-### Option 1: Automated Docker Deployment (Recommended)
+### Option 1: Smart Auto-Deployment (Recommended)
 
-**Perfect for production servers and quick setup:**
-
-```bash
-# Clone repository
-git clone <your-repository-url>
-cd hmo-document-processor
-
-# Make script executable and run
-chmod +x start-docker.sh
-./start-docker.sh
-
-# Optional: Rebuild with latest changes
-./start-docker.sh --rebuild
-```
-
-**What this does:**
-- ✅ Checks/installs Docker & Docker Compose
-- ✅ Creates necessary directories
-- ✅ Builds and starts all services (Redis, App, Worker)
-- ✅ Shows service status and logs
-- ✅ Provides management commands
-
-### Option 2: Manual Docker Setup
+**The `scripts/start.sh` automatically detects your environment and chooses the best deployment method:**
 
 ```bash
-# Install Docker (if needed)
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker $USER
-
-# Install Docker Compose (if needed)
-sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-sudo chmod +x /usr/local/bin/docker-compose
-
-# Deploy application
-git clone <your-repository-url>
+# Clone and auto-deploy
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
 cd hmo-document-processor
-docker-compose up -d --build
-
-# Check status
-docker-compose ps
-docker-compose logs
+chmod +x scripts/start.sh && ./scripts/start.sh
 ```
 
-### Option 3: Development Setup
+**Auto-detection logic:**
+- 🐳 **Docker available + docker-compose.yml exists** → Docker deployment
+- 💻 **No Docker or no docker-compose.yml** → Native Python deployment
+- 🔧 **Manual override** → Use `--docker` or `--native` flags
+
+### Option 2: Docker Deployment (Production Ready)
+
+```bash
+# Force Docker deployment
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+chmod +x scripts/start.sh && ./scripts/start.sh --docker
+```
+
+**Docker deployment includes:**
+- ✅ Redis server for queue management
+- ✅ Main application container
+- ✅ Worker processes for background tasks
+- ✅ Persistent data volumes
+- ✅ Network isolation and security
+
+### Option 3: Native Python Deployment (Development/Testing)
+
+```bash
+# Force native Python deployment
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+chmod +x scripts/start.sh && ./scripts/start.sh --native
+```
+
+**Native deployment includes:**
+- ✅ System Redis server
+- ✅ Python virtual environment
+- ✅ Systemd service integration
+- ✅ Direct system access for debugging
+
+### Option 4: Manual Setup (Troubleshooting)
 
 <details>
-<summary>Click to expand development installation</summary>
+<summary>Click to expand manual installation steps</summary>
 
 ```bash
-# Install system dependencies
+# 1. Install system dependencies
 sudo apt-get update && sudo apt-get install -y \
-    python3 python3-pip python3-venv tesseract-ocr \
-    tesseract-ocr-eng redis-server git curl
+    python3 python3-pip python3-venv python3-dev \
+    tesseract-ocr tesseract-ocr-eng \
+    redis-server git curl wget build-essential \
+    sqlite3 libsqlite3-dev
 
-# Create virtual environment
+# 2. Clone repository
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+
+# 3. Setup Python environment
 python3 -m venv venv
 source venv/bin/activate
-
-# Install Python dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
-# Start Redis
-sudo systemctl start redis-server
+# 4. Initialize system
+python fix_setup.py
 
-# Run application
-streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+# 5. Start Redis
+sudo systemctl start redis-server
+sudo systemctl enable redis-server
+
+# 6. Start application
+python start_app.py
 ```
 
 </details>
+
+### Option 5: Development Environment
+
+```bash
+# Development setup with hot reload
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+
+# Install development tools
+sudo apt-get install -y python3-dev python3-setuptools
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Run in development mode
+export DEBUG=true
+streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+```
 
 ## 🎯 Usage Guide
 
@@ -147,42 +227,126 @@ streamlit run app.py --server.port=8501 --server.address=0.0.0.0
 | `hmo_manager_name` | Manager name | "John Smith" |
 | `licence_holder_name` | License holder | "Property Ltd" |
 
-## 🔧 Management Commands
+## 🔧 Management Commands for Ubuntu Server
 
-### Docker Deployment
+### Using the Start Script
 
 ```bash
-# Start services
-docker-compose up -d
+# Start application (auto-detects deployment method)
+./scripts/start.sh
 
-# Stop services  
-docker-compose down
+# Force Docker deployment
+./scripts/start.sh --docker
+
+# Force native Python deployment  
+./scripts/start.sh --native
+
+# Check what deployment method will be used
+./scripts/start.sh --help
+```
+
+### Docker Deployment Management
+
+```bash
+# View service status
+docker-compose ps
 
 # View logs
 docker-compose logs -f
 
-# Restart specific service
-docker-compose restart app
+# Stop services
+docker-compose down
 
-# Update application
+# Restart services
+docker-compose restart
+
+# Update and restart
 git pull && docker-compose up -d --build
 
-# Complete cleanup (removes all data)
-docker-compose down -v && docker system prune -a
+# Scale workers (if needed)
+docker-compose up -d --scale worker=3
 ```
 
-### Service Status
+### Native Deployment Management
 
 ```bash
-# Check all services
-docker-compose ps
+# Check service status
+sudo systemctl status document-processor
 
-# Check specific service health
-docker-compose exec redis redis-cli ping
+# Start/stop/restart service
+sudo systemctl start document-processor
+sudo systemctl stop document-processor
+sudo systemctl restart document-processor
+
+# Enable/disable auto-start on boot
+sudo systemctl enable document-processor
+sudo systemctl disable document-processor
+
+# View live logs
+sudo journalctl -u document-processor -f
+
+# View recent logs
+sudo journalctl -u document-processor --since "1 hour ago"
+```
+
+### Application Updates
+
+```bash
+# Update from GitHub (works for both deployment methods)
+cd /path/to/hmo-document-processor
+git pull
+
+# For Docker deployment
+docker-compose down && docker-compose up -d --build
+
+# For native deployment
+source venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart document-processor
+```
+
+### Health Checks and Monitoring
+
+```bash
+# Check application health
 curl -f http://localhost:8501/_stcore/health
 
-# View resource usage
-docker stats
+# Check Redis (Docker)
+docker-compose exec redis redis-cli ping
+
+# Check Redis (Native)
+redis-cli ping
+
+# System resource monitoring
+htop                           # Interactive process viewer
+free -h                        # Memory usage
+df -h                          # Disk usage
+netstat -tlnp | grep 8501     # Check port usage
+
+# Application-specific monitoring
+python test_simple.py         # Run system test
+tail -f logs/app.log          # Application logs (if configured)
+```
+
+### Troubleshooting Commands
+
+```bash
+# Check what's running on port 8501
+sudo lsof -i :8501
+
+# Kill processes on port 8501 (if needed)
+sudo fuser -k 8501/tcp
+
+# Check Docker status (if using Docker)
+docker system df              # Docker disk usage
+docker system prune           # Clean up unused Docker resources
+
+# Check system logs
+sudo journalctl --since "1 hour ago" | grep -i error
+
+# Network connectivity test
+curl -I http://localhost:8501
+telnet localhost 8501
 ```
 
 ## 🏗️ Architecture
@@ -258,102 +422,230 @@ Edit `config/column_mappings.json` to customize field extraction:
 }
 ```
 
-## 🔍 Troubleshooting
+## 🔍 Troubleshooting for Ubuntu Server
 
-### Common Issues & Quick Fixes
+### Common Issues & Solutions
 
-#### ❌ "ProcessingPipeline object has no attribute '_register_services'"
+#### ❌ "Processing Error - Unknown Error"
 
-**Solution:**
+**Cause:** System components initialization failure
+
+**Solutions:**
 ```bash
-# Pull latest fixes and rebuild
-git pull
-docker-compose down
-docker-compose up -d --build
+# 1. Pull latest fixes
+git pull origin main
+
+# 2. Restart application
+./scripts/start.sh
+
+# 3. If using Docker
+docker-compose down && docker-compose up -d --build
+
+# 4. If using native deployment
+sudo systemctl restart document-processor
 ```
 
-#### ❌ "Error 111 connecting to localhost:6379. Connection refused"
+#### ❌ "Redis Connection Failed"
 
-**Solution:**
+**For Docker Deployment:**
 ```bash
 # Check Redis container
 docker-compose ps
 docker-compose logs redis
 
-# Restart Redis if needed
+# Restart Redis
 docker-compose restart redis
 ```
 
-#### ❌ "Application won't start"
+**For Native Deployment:**
+```bash
+# Check Redis service
+sudo systemctl status redis-server
+
+# Start Redis if stopped
+sudo systemctl start redis-server
+sudo systemctl enable redis-server
+
+# Test Redis connection
+redis-cli ping
+```
+
+#### ❌ "Port 8501 Already in Use"
 
 **Solution:**
 ```bash
-# Check port availability
-sudo netstat -tlnp | grep :8501
+# Find what's using the port
+sudo lsof -i :8501
 
-# Kill conflicting process
+# Kill the process (replace PID with actual process ID)
+sudo kill -9 PID
+
+# Or kill all processes on port 8501
 sudo fuser -k 8501/tcp
 
 # Restart application
-docker-compose restart app
+./scripts/start.sh
 ```
 
-#### ❌ "Permission denied" errors
+#### ❌ "Permission Denied" Errors
 
 **Solution:**
 ```bash
-# Fix directory permissions
+# Fix file permissions
 sudo chown -R $USER:$USER .
-chmod 755 uploads downloads temp logs cache data
+chmod +x scripts/start.sh
 
-# For Docker group access
+# Fix directory permissions
+chmod 755 uploads downloads temp logs cache data sample_outputs
+
+# For Docker group access (if using Docker)
 sudo usermod -aG docker $USER
 # Then logout and login again
 ```
 
-### Diagnostic Commands
+#### ❌ "Python Module Not Found"
+
+**Solution:**
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Reinstall dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Download spaCy model
+python -m spacy download en_core_web_sm
+
+# Test installation
+python test_simple.py
+```
+
+#### ❌ "Streamlit Won't Start"
+
+**Solution:**
+```bash
+# Check if Streamlit is installed
+source venv/bin/activate
+streamlit --version
+
+# Reinstall Streamlit
+pip install --upgrade streamlit
+
+# Start manually for debugging
+streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+```
+
+### Ubuntu-Specific Diagnostics
 
 ```bash
-# Check all services
-docker-compose ps
-
-# View recent logs
-docker-compose logs --tail=50
+# Check Ubuntu version and compatibility
+lsb_release -a
 
 # Check system resources
-free -h && df -h
+free -h                    # Memory usage
+df -h                      # Disk usage
+htop                       # Process monitor
+iostat 1 5                 # I/O statistics
 
-# Test Redis connection
-docker-compose exec redis redis-cli ping
+# Check network configuration
+ip addr show               # Network interfaces
+ss -tulpn | grep 8501     # Port usage
+sudo ufw status           # Firewall status
 
-# Test web interface
-curl -f http://localhost:8501/_stcore/health
+# Check system services
+systemctl --failed        # Failed services
+journalctl --since "1 hour ago" | grep -i error  # System errors
 ```
 
-### Performance Optimization
-
-| Issue | Solution |
-|-------|----------|
-| **Slow processing** | Increase RAM, reduce file size, enable chunked processing |
-| **High memory usage** | Restart services: `docker-compose restart` |
-| **Network timeouts** | Check firewall: `sudo ufw allow 8501` |
-| **Disk space** | Clean up: `docker system prune -a` |
-
-### Log Locations
+### Application-Specific Diagnostics
 
 ```bash
-# Application logs
-docker-compose logs app
+# Test system components
+python test_simple.py
 
-# Redis logs  
-docker-compose logs redis
+# Check application health
+curl -f http://localhost:8501/_stcore/health
 
-# Worker logs
-docker-compose logs worker
+# Verify file permissions
+ls -la uploads/ downloads/ temp/ logs/
+
+# Check Python environment
+source venv/bin/activate
+python --version
+pip list | grep -E "(streamlit|pandas|spacy)"
+
+# Test database connectivity
+python -c "
+import sqlite3
+conn = sqlite3.connect('processing_sessions.db')
+print('Database connection: OK')
+conn.close()
+"
+```
+
+### Performance Optimization for Ubuntu
+
+| Issue | Ubuntu Solution |
+|-------|----------------|
+| **Slow processing** | `sudo sysctl vm.swappiness=10` (reduce swap usage) |
+| **High memory usage** | `sudo systemctl restart document-processor` |
+| **Disk I/O bottleneck** | Move to SSD, or `sudo ionice -c 1 -n 4 python app.py` |
+| **Network timeouts** | `sudo ufw allow 8501/tcp` |
+| **Too many open files** | `ulimit -n 4096` |
+
+### Log Analysis
+
+```bash
+# Application logs (Docker)
+docker-compose logs -f --tail=100
+
+# Application logs (Native)
+sudo journalctl -u document-processor -f
 
 # System logs
-sudo journalctl -u docker.service -f
+sudo journalctl --since "1 hour ago" | grep -E "(error|fail|exception)"
+
+# Streamlit logs
+tail -f ~/.streamlit/logs/streamlit.log
+
+# Custom application logs (if configured)
+tail -f logs/app.log
 ```
+
+### Emergency Recovery
+
+```bash
+# Complete reset (Docker)
+docker-compose down -v
+docker system prune -a
+git pull origin main
+./scripts/start.sh --docker
+
+# Complete reset (Native)
+sudo systemctl stop document-processor
+rm -rf venv/
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python fix_setup.py
+./scripts/start.sh --native
+
+# Database reset (if needed)
+rm -f processing_sessions.db audit_data.db
+python fix_setup.py
+```
+
+### Getting Help
+
+1. **Check logs first**: `sudo journalctl -u document-processor -f`
+2. **Run system test**: `python test_simple.py`
+3. **Check GitHub Issues**: Search for similar problems
+4. **Create detailed issue** with:
+   - Ubuntu version: `lsb_release -a`
+   - Error messages from logs
+   - Steps to reproduce
+   - System resources: `free -h && df -h`
 
 ## 🚀 Automated Deployment Scripts
 
@@ -417,31 +709,110 @@ docker cp backup_YYYYMMDD.tar.gz $(docker-compose ps -q app):/tmp/
 docker-compose exec app tar -xzf /tmp/backup_YYYYMMDD.tar.gz -C /
 ```
 
-## 🤝 Contributing
+## 👥 Team Collaboration & GitHub Workflow
 
-1. **Fork** the repository
-2. **Create** feature branch: `git checkout -b feature/amazing-feature`
-3. **Commit** changes: `git commit -m 'Add amazing feature'`
-4. **Push** to branch: `git push origin feature/amazing-feature`
-5. **Open** Pull Request
-
-### Development Setup
+### For Team Members (Pulling and Deploying)
 
 ```bash
-# Clone your fork
+# 1. Clone the repository
 git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
 cd hmo-document-processor
 
-# Create development environment
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# 2. Deploy automatically (recommended)
+chmod +x scripts/start.sh && ./scripts/start.sh
 
-# Run tests
-pytest tests/
+# 3. Access the application
+# Local: http://localhost:8501
+# Remote: http://YOUR_SERVER_IP:8501
+```
 
-# Start development server
-streamlit run app.py
+### Development Workflow
+
+```bash
+# 1. Pull latest changes
+git pull origin main
+
+# 2. Create feature branch
+git checkout -b feature/your-feature-name
+
+# 3. Make changes and test
+source venv/bin/activate  # If using native deployment
+python test_simple.py     # Run tests
+
+# 4. Commit and push
+git add .
+git commit -m "Add: your feature description"
+git push origin feature/your-feature-name
+
+# 5. Create Pull Request on GitHub
+```
+
+### Production Deployment Workflow
+
+```bash
+# 1. SSH to Ubuntu server
+ssh user@your-server-ip
+
+# 2. Navigate to application directory (or clone if first time)
+cd hmo-document-processor || git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git && cd hmo-document-processor
+
+# 3. Pull latest changes
+git pull origin main
+
+# 4. Deploy/restart application
+./scripts/start.sh
+
+# 5. Verify deployment
+curl -f http://localhost:8501/_stcore/health
+```
+
+### Environment-Specific Configurations
+
+Create environment-specific configuration files:
+
+```bash
+# Development environment
+cp .env.example .env.development
+
+# Production environment  
+cp .env.example .env.production
+
+# Staging environment
+cp .env.example .env.staging
+```
+
+### 🤝 Contributing Guidelines
+
+1. **Fork** the repository on GitHub
+2. **Clone** your fork: `git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git`
+3. **Create** feature branch: `git checkout -b feature/amazing-feature`
+4. **Setup** development environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   python -m spacy download en_core_web_sm
+   ```
+5. **Make** your changes and test thoroughly
+6. **Run** tests: `python test_simple.py`
+7. **Commit** changes: `git commit -m 'Add: amazing feature'`
+8. **Push** to branch: `git push origin feature/amazing-feature`
+9. **Open** Pull Request with detailed description
+
+### Code Quality Standards
+
+```bash
+# Run linting (if configured)
+flake8 .
+
+# Run type checking (if configured)
+mypy .
+
+# Run security checks (if configured)
+bandit -r .
+
+# Run all tests
+python -m pytest tests/ -v
 ```
 
 ## 📄 License
@@ -482,8 +853,121 @@ When reporting issues, include:
 [Paste relevant logs from docker-compose logs]
 ```
 
+## 📚 Quick Reference
+
+### Essential Commands
+
+```bash
+# 🚀 Deploy application
+git clone https://github.com/YOUR_USERNAME/hmo-document-processor.git
+cd hmo-document-processor
+chmod +x scripts/start.sh && ./scripts/start.sh
+
+# 🔄 Update application
+git pull origin main && ./scripts/start.sh
+
+# 🔍 Check status
+curl -f http://localhost:8501/_stcore/health
+
+# 📊 View logs
+sudo journalctl -u document-processor -f  # Native
+docker-compose logs -f                    # Docker
+
+# 🛑 Stop application
+sudo systemctl stop document-processor    # Native
+docker-compose down                       # Docker
+
+# 🧪 Test system
+python test_simple.py
+```
+
+### File Structure
+
+```
+hmo-document-processor/
+├── app.py                 # Main Streamlit application
+├── scripts/start.sh       # Smart deployment script
+├── fix_setup.py          # System initialization
+├── test_simple.py        # System testing
+├── requirements.txt      # Python dependencies
+├── docker-compose.yml    # Docker configuration
+├── services/             # Core processing services
+├── models/               # Data models
+├── web/                  # Web interface components
+├── temp/                 # Temporary files
+├── sample_outputs/       # Generated CSV files
+└── logs/                 # Application logs
+```
+
+### Environment Variables
+
+```bash
+# Application settings
+export DEBUG=false
+export LOG_LEVEL=INFO
+export MAX_FILE_SIZE=104857600
+
+# Server settings
+export STREAMLIT_PORT=8501
+export HOST=0.0.0.0
+
+# Database settings
+export DATABASE_URL=sqlite:///processing_sessions.db
+export AUDIT_DATABASE_URL=sqlite:///audit_data.db
+```
+
+### Useful URLs
+
+- **Application**: http://localhost:8501
+- **Health Check**: http://localhost:8501/_stcore/health
+- **GitHub Repository**: https://github.com/YOUR_USERNAME/hmo-document-processor
+- **Issues**: https://github.com/YOUR_USERNAME/hmo-document-processor/issues
+
+---
+
+## 📞 Support & Contact
+
+### Getting Support
+
+1. **📖 Documentation**: Check this README and troubleshooting section
+2. **🔍 Search Issues**: Look for existing solutions in [GitHub Issues](../../issues)
+3. **💬 Create Issue**: Report bugs or request features with detailed information
+4. **📧 Contact Team**: For urgent production issues
+
+### Issue Reporting Template
+
+```markdown
+**Environment:**
+- OS: Ubuntu 22.04
+- Deployment: Docker/Native
+- Python: 3.x.x
+- Browser: Chrome/Firefox
+
+**Error Description:**
+[Clear description of the issue]
+
+**Steps to Reproduce:**
+1. Step one
+2. Step two
+3. Error occurs
+
+**Expected vs Actual Behavior:**
+Expected: [What should happen]
+Actual: [What actually happens]
+
+**Logs:**
+```
+[Paste relevant logs here]
+```
+
+**Additional Context:**
+[Any other relevant information]
+```
+
 ---
 
 **⭐ Star this repository if it helped you!**
 
-**🔗 Share with others who might benefit from automated HMO document processing**
+**🔗 Share with colleagues who need automated HMO document processing**
+
+**🤝 Contribute to make it even better for the community**

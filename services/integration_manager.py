@@ -26,6 +26,7 @@ from services.file_storage import FileStorageManager
 from services.queue_manager import QueueManager
 from services.error_handler import ErrorHandler, GracefulDegradationManager, error_handler_decorator
 from services.performance_optimizer import PerformanceOptimizer, performance_monitor_decorator, cached_operation
+from services.simple_processor import SimpleProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -769,7 +770,18 @@ class IntegrationManager:
             config: System configuration dictionary
         """
         self.config = config or {}
-        self.processing_pipeline = ProcessingPipeline(config)
+        
+        # Initialize simple processor as fallback
+        self.simple_processor = SimpleProcessor()
+        
+        # Try to initialize main processing pipeline
+        try:
+            self.processing_pipeline = ProcessingPipeline(config)
+            self.pipeline_available = True
+        except Exception as e:
+            logger.error(f"Failed to initialize main processing pipeline: {e}")
+            self.processing_pipeline = None
+            self.pipeline_available = False
         
         # Initialize queue for async processing
         self.processing_queue = asyncio.Queue()
@@ -798,35 +810,48 @@ class IntegrationManager:
             
         Requirements: 5.1
         """
-        # Create processing session
-        session_id = str(uuid.uuid4())
-        
-        session_data = {
-            'session_id': session_id,
-            'file_name': filename,
-            'file_size': file_size,
-            'file_path': str(file_path),
-            'processing_status': 'queued',
-            'upload_timestamp': datetime.now().isoformat(),
-            'processing_options': processing_options or {}
-        }
-        
-        # Store session
-        self.processing_pipeline.session_manager.create_session(session_data)
-        
-        # Add to processing queue
-        await self.processing_queue.put({
-            'session_id': session_id,
-            'file_path': file_path,
-            'options': processing_options
-        })
-        
-        # Start processing if not already running
-        if not self.is_processing:
-            asyncio.create_task(self._process_queue())
+        try:
+            # Create processing session
+            session_id = str(uuid.uuid4())
             
-        logger.info(f"Document submitted for processing: {session_id}")
-        return session_id
+            session_data = {
+                'session_id': session_id,
+                'file_name': filename,
+                'file_size': file_size,
+                'file_path': str(file_path),
+                'processing_status': 'queued',
+                'upload_timestamp': datetime.now().isoformat(),
+                'processing_options': processing_options or {}
+            }
+            
+            # Store session with error handling
+            try:
+                self.processing_pipeline.session_manager.create_session(session_data)
+            except Exception as e:
+                logger.error(f"Failed to create session: {e}")
+                # Create a simple session record as fallback
+                self._create_fallback_session(session_id, session_data)
+            
+            # Add to processing queue
+            await self.processing_queue.put({
+                'session_id': session_id,
+                'file_path': file_path,
+                'options': processing_options
+            })
+            
+            # Start processing if not already running
+            if not self.is_processing:
+                asyncio.create_task(self._process_queue())
+                
+            logger.info(f"Document submitted for processing: {session_id}")
+            return session_id
+            
+        except Exception as e:
+            logger.error(f"Failed to submit document for processing: {e}")
+            # Create emergency session ID for error tracking
+            emergency_session_id = f"ERROR_{str(uuid.uuid4())[:8]}"
+            self._handle_submission_error(emergency_session_id, str(e))
+            return emergency_session_id
         
     async def _process_queue(self) -> None:
         """Process documents from the queue."""
@@ -838,18 +863,45 @@ class IntegrationManager:
                     # Get next item from queue
                     queue_item = await self.processing_queue.get()
                     
-                    # Process document
-                    await self.processing_pipeline.process_document_async(
-                        queue_item['file_path'],
-                        queue_item['session_id'],
-                        queue_item['options']
-                    )
+                    # Try main pipeline first, fallback to simple processor
+                    if self.pipeline_available and self.processing_pipeline:
+                        try:
+                            await self.processing_pipeline.process_document_async(
+                                queue_item['file_path'],
+                                queue_item['session_id'],
+                                queue_item['options']
+                            )
+                        except Exception as e:
+                            logger.warning(f"Main pipeline failed, using simple processor: {e}")
+                            await self.simple_processor.process_document_simple(
+                                str(queue_item['file_path']),
+                                queue_item['session_id'],
+                                queue_item['options']
+                            )
+                    else:
+                        # Use simple processor directly
+                        logger.info(f"Using simple processor for session {queue_item['session_id']}")
+                        await self.simple_processor.process_document_simple(
+                            str(queue_item['file_path']),
+                            queue_item['session_id'],
+                            queue_item['options']
+                        )
                     
                     # Mark task as done
                     self.processing_queue.task_done()
                     
                 except Exception as e:
                     logger.error(f"Queue processing error: {str(e)}")
+                    # Try to update session with error status
+                    try:
+                        session_id = queue_item.get('session_id', 'unknown')
+                        self.simple_processor.processing_sessions[session_id] = {
+                            'status': 'error',
+                            'error_message': str(e),
+                            'last_updated': datetime.now().isoformat()
+                        }
+                    except Exception:
+                        pass
                     
         finally:
             self.is_processing = False
@@ -865,18 +917,56 @@ class IntegrationManager:
             Dict[str, Any]: Current processing status and progress
         """
         try:
-            session = self.processing_pipeline.session_manager.get_session(session_id)
+            # First check simple processor
+            simple_status = self.simple_processor.get_session_status(session_id)
+            if simple_status.get('status') != 'not_found':
+                return {
+                    'status': simple_status.get('status', 'unknown'),
+                    'current_stage': simple_status.get('current_stage', 'processing'),
+                    'progress': simple_status.get('progress', 0.0),
+                    'error_message': simple_status.get('error_message'),
+                    'last_updated': simple_status.get('last_updated')
+                }
             
-            if not session:
-                return {'status': 'not_found', 'error': 'Session not found'}
-                
-            return {
-                'status': session.get('processing_status', 'unknown'),
-                'current_stage': session.get('current_stage'),
-                'progress': self._calculate_progress(session),
-                'error_message': session.get('error_message'),
-                'last_updated': session.get('last_updated')
-            }
+            # Then check main pipeline if available
+            if self.pipeline_available and self.processing_pipeline:
+                try:
+                    session = self.processing_pipeline.session_manager.get_session(session_id)
+                    
+                    if session:
+                        return {
+                            'status': session.get('processing_status', 'unknown'),
+                            'current_stage': session.get('current_stage'),
+                            'progress': self._calculate_progress(session),
+                            'error_message': session.get('error_message'),
+                            'last_updated': session.get('last_updated')
+                        }
+                except Exception as e:
+                    logger.warning(f"Main pipeline status check failed: {e}")
+            
+            # Check fallback sessions
+            if hasattr(self, '_fallback_sessions') and session_id in self._fallback_sessions:
+                fallback = self._fallback_sessions[session_id]
+                return {
+                    'status': fallback.get('processing_status', 'unknown'),
+                    'current_stage': 'fallback_processing',
+                    'progress': 0.5,
+                    'error_message': fallback.get('error_message'),
+                    'last_updated': fallback.get('created_at')
+                }
+            
+            # Check error sessions
+            if hasattr(self, '_error_sessions') and session_id in self._error_sessions:
+                error_session = self._error_sessions[session_id]
+                return {
+                    'status': 'error',
+                    'current_stage': 'error',
+                    'progress': 0.0,
+                    'error_message': error_session.get('error_message', 'Unknown error'),
+                    'last_updated': error_session.get('created_at')
+                }
+            
+            return {'status': 'not_found', 'error': 'Session not found'}
             
         except Exception as e:
             logger.error(f"Failed to get processing status: {str(e)}")
@@ -915,35 +1005,59 @@ class IntegrationManager:
             Optional[Dict[str, Any]]: Processing results if available
         """
         try:
-            session = self.processing_pipeline.session_manager.get_session(session_id)
-            
-            if not session or session.get('processing_status') != 'completed':
-                return None
-                
-            # Get flagged records for audit interface
-            flagged_records = self.processing_pipeline.audit_manager.get_flagged_records(session_id)
-            
-            return {
-                'session_id': session_id,
-                'total_records': session.get('total_records', 0),
-                'flagged_count': session.get('flagged_records', 0),
-                'average_confidence': session.get('average_confidence', 0),
-                'csv_filename': session.get('csv_filename'),
-                'flagged_records': [
-                    {
-                        'record_id': fr.record_id,
-                        'flag_reason': fr.flag_reason,
-                        'confidence': fr.hmo_record.get_overall_confidence(),
-                        'review_status': fr.review_status.value
-                    }
-                    for fr in flagged_records
-                ],
-                'processing_metadata': {
-                    'completed_at': session.get('completed_at'),
-                    'file_name': session.get('file_name'),
-                    'file_size': session.get('file_size')
+            # First check simple processor results
+            simple_results = self.simple_processor.get_session_results(session_id)
+            if simple_results:
+                return {
+                    'session_id': session_id,
+                    'records': simple_results.get('records', []),
+                    'total_records': simple_results.get('total_records', 0),
+                    'flagged_count': len([r for r in simple_results.get('records', []) if r.get('needs_review', False)]),
+                    'average_confidence': simple_results.get('processing_metadata', {}).get('average_confidence', 0.5),
+                    'csv_filename': simple_results.get('csv_filename'),
+                    'processing_metadata': simple_results.get('processing_metadata', {}),
+                    'processor_type': 'simple_fallback'
                 }
-            }
+            
+            # Then check main pipeline if available
+            if self.pipeline_available and self.processing_pipeline:
+                try:
+                    session = self.processing_pipeline.session_manager.get_session(session_id)
+                    
+                    if session and session.get('processing_status') == 'completed':
+                        # Get flagged records for audit interface
+                        flagged_records = []
+                        try:
+                            flagged_records = self.processing_pipeline.audit_manager.get_flagged_records(session_id)
+                        except Exception as e:
+                            logger.warning(f"Failed to get flagged records: {e}")
+                        
+                        return {
+                            'session_id': session_id,
+                            'total_records': session.get('total_records', 0),
+                            'flagged_count': session.get('flagged_records', 0),
+                            'average_confidence': session.get('average_confidence', 0),
+                            'csv_filename': session.get('csv_filename'),
+                            'flagged_records': [
+                                {
+                                    'record_id': fr.record_id,
+                                    'flag_reason': fr.flag_reason,
+                                    'confidence': getattr(fr.hmo_record, 'get_overall_confidence', lambda: 0.5)(),
+                                    'review_status': getattr(fr.review_status, 'value', 'pending')
+                                }
+                                for fr in flagged_records
+                            ],
+                            'processing_metadata': {
+                                'completed_at': session.get('completed_at'),
+                                'file_name': session.get('file_name'),
+                                'file_size': session.get('file_size'),
+                                'processor_type': 'main_pipeline'
+                            }
+                        }
+                except Exception as e:
+                    logger.warning(f"Main pipeline results check failed: {e}")
+            
+            return None
             
         except Exception as e:
             logger.error(f"Failed to get processing results: {str(e)}")
@@ -1233,4 +1347,251 @@ class IntegrationManager:
             'evictions': cache_stats_after.get('total_evictions', 0) - cache_stats_before.get('total_evictions', 0)
         }
         
-        return results
+        return results   
+    def _create_fallback_session(self, session_id: str, session_data: Dict[str, Any]) -> None:
+        """Create a fallback session when database fails."""
+        try:
+            # Store in memory as fallback
+            if not hasattr(self, '_fallback_sessions'):
+                self._fallback_sessions = {}
+            
+            self._fallback_sessions[session_id] = {
+                **session_data,
+                'created_at': datetime.now().isoformat(),
+                'fallback_mode': True
+            }
+            
+            logger.warning(f"Created fallback session {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create fallback session: {e}")
+    
+    def _handle_submission_error(self, session_id: str, error_message: str) -> None:
+        """Handle submission errors by creating error session."""
+        try:
+            if not hasattr(self, '_error_sessions'):
+                self._error_sessions = {}
+                
+            self._error_sessions[session_id] = {
+                'session_id': session_id,
+                'processing_status': 'error',
+                'error_message': error_message,
+                'created_at': datetime.now().isoformat()
+            }
+            
+            logger.error(f"Created error session {session_id}: {error_message}")
+            
+        except Exception as e:
+            logger.critical(f"Failed to handle submission error: {e}")
+    
+    def get_csv_download_path(self, session_id: str) -> Optional[str]:
+        """
+        Get CSV download path for a completed session.
+        
+        Args:
+            session_id: Processing session ID
+            
+        Returns:
+            Optional[str]: Path to CSV file if available
+        """
+        try:
+            # Generate CSV path
+            csv_filename = f"hmo_results_{session_id[:8]}.csv"
+            csv_path = Path("sample_outputs") / csv_filename
+            
+            # Check if CSV already exists
+            if csv_path.exists():
+                return str(csv_path)
+            
+            # Try to get session from simple processor first
+            simple_results = self.simple_processor.get_session_results(session_id)
+            if simple_results and simple_results.get('csv_path'):
+                return simple_results['csv_path']
+            
+            # Try main pipeline if available
+            if self.pipeline_available and self.processing_pipeline:
+                try:
+                    session = self.processing_pipeline.session_manager.get_session(session_id)
+                    
+                    if session and session.get('processing_status') == 'completed':
+                        # Create CSV if it doesn't exist
+                        if not csv_path.exists():
+                            self._generate_csv_for_session(session_id, csv_path)
+                        
+                        return str(csv_path) if csv_path.exists() else None
+                except Exception as e:
+                    logger.warning(f"Main pipeline CSV check failed: {e}")
+            
+            # Try to generate CSV from any available data
+            if not csv_path.exists():
+                self._generate_csv_for_session(session_id, csv_path)
+            
+            return str(csv_path) if csv_path.exists() else None
+            
+        except Exception as e:
+            logger.error(f"Failed to get CSV download path: {e}")
+            return None
+    
+    def _generate_csv_for_session(self, session_id: str, csv_path: Path) -> None:
+        """Generate CSV file for a session."""
+        try:
+            # Ensure output directory exists
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Try to get data from simple processor first
+            simple_results = self.simple_processor.get_session_results(session_id)
+            if simple_results and simple_results.get('records'):
+                records = simple_results['records']
+                
+                # Generate CSV from simple processor records
+                csv_content = self._generate_simple_csv(records)
+                
+                # Write CSV file
+                with open(csv_path, 'w', encoding='utf-8') as f:
+                    f.write(csv_content)
+                    
+                logger.info(f"Generated CSV file from simple processor: {csv_path}")
+                return
+            
+            # Try main pipeline if available
+            if self.pipeline_available and self.processing_pipeline:
+                try:
+                    session = self.processing_pipeline.session_manager.get_session(session_id)
+                    
+                    if session:
+                        # Generate CSV content
+                        csv_content = self.processing_pipeline.csv_generator.generate_csv(
+                            session.get('extracted_records', [])
+                        )
+                        
+                        # Write CSV file
+                        with open(csv_path, 'w', encoding='utf-8') as f:
+                            f.write(csv_content)
+                            
+                        logger.info(f"Generated CSV file from main pipeline: {csv_path}")
+                        return
+                except Exception as e:
+                    logger.warning(f"Main pipeline CSV generation failed: {e}")
+            
+            # Create minimal CSV for error case
+            with open(csv_path, 'w', encoding='utf-8') as f:
+                f.write("council,reference,error\n")
+                f.write(f"Unknown,{session_id[:8]},Session data not found\n")
+                
+        except Exception as e:
+            logger.error(f"Failed to generate CSV for session {session_id}: {e}")
+            # Create error CSV as fallback
+            try:
+                csv_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(csv_path, 'w', encoding='utf-8') as f:
+                    f.write("council,reference,error\n")
+                    f.write(f"Error,{session_id[:8]},CSV generation failed: {str(e)}\n")
+            except Exception as csv_error:
+                logger.error(f"Failed to create error CSV: {csv_error}")
+    
+    def _generate_simple_csv(self, records: List[Dict[str, Any]]) -> str:
+        """Generate simple CSV from records."""
+        try:
+            if not records:
+                return "council,reference,error\nNo Data,No Data,No records extracted\n"
+            
+            # Define CSV headers
+            headers = [
+                'council', 'reference', 'hmo_address', 'licence_start', 'licence_expiry',
+                'max_occupancy', 'hmo_manager_name', 'licence_holder_name',
+                'extraction_method', 'needs_review'
+            ]
+            
+            # Create CSV content
+            csv_lines = [','.join(headers)]
+            
+            for record in records:
+                row = []
+                for header in headers:
+                    value = record.get(header, '')
+                    # Clean value for CSV
+                    if isinstance(value, str):
+                        value = value.replace(',', ';').replace('\n', ' ').replace('\r', '')
+                    row.append(str(value))
+                
+                csv_lines.append(','.join(row))
+            
+            return '\n'.join(csv_lines)
+            
+        except Exception as e:
+            logger.error(f"CSV generation failed: {e}")
+            return f"council,reference,error\nError,Error,CSV generation failed: {str(e)}\n"
+    
+    def validate_system_components(self) -> Dict[str, Any]:
+        """
+        Validate all system components and return status.
+        
+        Returns:
+            Dict[str, Any]: System component status
+        """
+        try:
+            components = {}
+            
+            # Check processing pipeline
+            try:
+                if hasattr(self.processing_pipeline, 'document_processor'):
+                    components['document_processor'] = 'operational'
+                else:
+                    components['document_processor'] = 'missing'
+            except Exception:
+                components['document_processor'] = 'error'
+            
+            # Check NLP pipeline
+            try:
+                if hasattr(self.processing_pipeline, 'nlp_pipeline'):
+                    components['nlp_pipeline'] = 'operational'
+                else:
+                    components['nlp_pipeline'] = 'missing'
+            except Exception:
+                components['nlp_pipeline'] = 'error'
+            
+            # Check database
+            try:
+                if hasattr(self.processing_pipeline, 'session_manager'):
+                    # Try a simple database operation
+                    self.processing_pipeline.session_manager.get_database_stats()
+                    components['database'] = 'operational'
+                else:
+                    components['database'] = 'missing'
+            except Exception:
+                components['database'] = 'error'
+            
+            # Check file storage
+            try:
+                if hasattr(self.processing_pipeline, 'file_storage'):
+                    components['file_storage'] = 'operational'
+                else:
+                    components['file_storage'] = 'missing'
+            except Exception:
+                components['file_storage'] = 'error'
+            
+            # Determine overall status
+            operational_count = sum(1 for status in components.values() if status == 'operational')
+            total_count = len(components)
+            
+            if operational_count == total_count:
+                overall_status = 'fully_operational'
+            elif operational_count > total_count / 2:
+                overall_status = 'mostly_operational'
+            else:
+                overall_status = 'degraded'
+            
+            return {
+                'overall_status': overall_status,
+                'components': components,
+                'operational_count': operational_count,
+                'total_count': total_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to validate system components: {e}")
+            return {
+                'overall_status': 'error',
+                'components': {'system_check': 'error'},
+                'error': str(e)
+            }

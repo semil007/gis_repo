@@ -1,0 +1,2 @@
+council,reference,hmo_address,licence_start,licence_expiry,max_occupancy,hmo_manager_name,licence_holder_name,extraction_method,needs_review
+Unknown Council,EXTRACTED_bf35a7fb,Address not found in document,,,0,Manager not specified,,simple_pattern_matching,True

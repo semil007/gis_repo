@@ -478,3 +478,153 @@ class SessionManager:
         except Exception as e:
             print(f"Error cleaning up sessions: {e}")
             return 0
+    
+    def create_session(self, session_data: Dict[str, Any]) -> bool:
+        """
+        Create a new processing session.
+        
+        Args:
+            session_data: Session data dictionary
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute('''
+                    INSERT INTO processing_sessions (
+                        session_id, file_name, file_size, file_path, upload_timestamp,
+                        processing_status, processing_config
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    session_data['session_id'],
+                    session_data['file_name'],
+                    session_data['file_size'],
+                    session_data['file_path'],
+                    session_data['upload_timestamp'],
+                    session_data['processing_status'],
+                    json.dumps(session_data.get('processing_options', {}))
+                ))
+                return True
+                
+        except Exception as e:
+            print(f"Error creating session: {e}")
+            return False
+    
+    def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get session data by ID.
+        
+        Args:
+            session_id: Session ID to retrieve
+            
+        Returns:
+            Optional[Dict[str, Any]]: Session data if found
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute(
+                    'SELECT * FROM processing_sessions WHERE session_id = ?',
+                    (session_id,)
+                )
+                row = cursor.fetchone()
+                
+                if row:
+                    return dict(row)
+                return None
+                
+        except Exception as e:
+            print(f"Error getting session: {e}")
+            return None
+    
+    def update_session_status(self, session_id: str, status: str, stage: Optional[str] = None, error_message: Optional[str] = None) -> bool:
+        """
+        Update session status and stage.
+        
+        Args:
+            session_id: Session ID to update
+            status: New processing status
+            stage: Current processing stage
+            error_message: Error message if status is error
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Update basic status
+                conn.execute('''
+                    UPDATE processing_sessions 
+                    SET processing_status = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE session_id = ?
+                ''', (status, session_id))
+                
+                # Add stage and error info if provided
+                if stage or error_message:
+                    # Get current processing_config
+                    cursor = conn.execute(
+                        'SELECT processing_config FROM processing_sessions WHERE session_id = ?',
+                        (session_id,)
+                    )
+                    row = cursor.fetchone()
+                    
+                    if row and row[0]:
+                        config = json.loads(row[0])
+                    else:
+                        config = {}
+                    
+                    if stage:
+                        config['current_stage'] = stage
+                    if error_message:
+                        config['error_message'] = error_message
+                    
+                    config['last_updated'] = datetime.now().isoformat()
+                    
+                    conn.execute('''
+                        UPDATE processing_sessions 
+                        SET processing_config = ?
+                        WHERE session_id = ?
+                    ''', (json.dumps(config), session_id))
+                
+                return True
+                
+        except Exception as e:
+            print(f"Error updating session status: {e}")
+            return False
+    
+    def get_database_stats(self) -> Dict[str, Any]:
+        """
+        Get database statistics.
+        
+        Returns:
+            Dict[str, Any]: Database statistics
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                # Get total sessions
+                cursor = conn.execute('SELECT COUNT(*) FROM processing_sessions')
+                total_sessions = cursor.fetchone()[0]
+                
+                # Get total records
+                cursor = conn.execute('SELECT COUNT(*) FROM extracted_records')
+                total_records = cursor.fetchone()[0]
+                
+                # Get database file size
+                db_size = Path(self.db_path).stat().st_size if Path(self.db_path).exists() else 0
+                
+                return {
+                    'total_sessions': total_sessions,
+                    'total_records': total_records,
+                    'database_size_bytes': db_size,
+                    'database_path': self.db_path
+                }
+                
+        except Exception as e:
+            print(f"Error getting database stats: {e}")
+            return {
+                'total_sessions': 0,
+                'total_records': 0,
+                'database_size_bytes': 0,
+                'error': str(e)
+            }
