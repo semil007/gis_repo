@@ -17,13 +17,13 @@ from models.hmo_record import HMORecord
 from models.processing_session import ProcessingSession, SessionManager
 from processors.unified_processor import UnifiedDocumentProcessor
 from nlp.nlp_pipeline import NLPPipeline
-from nlp.entity_extractors import EntityExtractor
+from nlp.entity_extractors import ExtractedEntity as EntityExtractor
 from nlp.confidence_calculator import ConfidenceCalculator
 from services.data_validator import DataValidator, ValidationResult
 from services.quality_assessment import QualityAssessment
 from services.audit_manager import AuditManager, FlaggedRecord
 from services.csv_generator import CSVGenerator
-from services.file_storage import FileStorage
+from services.file_storage import FileStorageManager as FileStorage
 from services.queue_manager import QueueManager
 from services.error_handler import ErrorHandler, GracefulDegradationManager, error_handler_decorator
 from services.performance_optimizer import PerformanceOptimizer, performance_monitor_decorator, cached_operation
