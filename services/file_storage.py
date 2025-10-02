@@ -342,6 +342,21 @@ class FileStorageManager:
         
         return stats
     
+    def get_storage_info(self) -> Dict[str, Any]:
+        """
+        Get basic information about the file storage.
+        
+        Returns:
+            Dict[str, Any]: Storage information
+        """
+        return {
+            'available': True,
+            'storage_root': str(self.storage_root),
+            'temp_dir': str(self.temp_dir),
+            'max_storage_gb': self.max_storage_bytes / (1024 * 1024 * 1024),
+            'current_usage_bytes': self.get_storage_usage()
+        }
+    
     @contextmanager
     def temp_file_context(self, session_id: str, suffix: str = ""):
         """Context manager for temporary files"""

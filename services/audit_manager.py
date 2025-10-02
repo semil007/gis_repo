@@ -531,6 +531,29 @@ class AuditManager:
         
         return exported_data
     
+    def get_audit_statistics(self) -> Dict[str, Any]:
+        """
+        Get audit statistics from the database.
+        
+        Returns:
+            Dict[str, Any]: Audit statistics
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Get total flagged records
+            cursor.execute("SELECT COUNT(*) FROM flagged_records")
+            total_flagged = cursor.fetchone()[0]
+            
+            # Get status breakdown
+            cursor.execute("SELECT review_status, COUNT(*) FROM flagged_records GROUP BY review_status")
+            status_breakdown = {status: count for status, count in cursor.fetchall()}
+            
+            return {
+                'total_flagged_records': total_flagged,
+                'status_breakdown': status_breakdown
+            }
+    
     def generate_audit_report(self, session_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate comprehensive audit report.

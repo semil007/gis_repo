@@ -1,0 +1,20 @@
+ Processing Error
+Error: An unknown error occurred
+
+Session ID: Unknown
+
+🔧 What you can do:
+
+❌ System components are experiencing issues
+
+System Component Status
+
+✅ document_processor: fully_operational
+
+✅ nlp_pipeline: operational
+
+✅ data_validator: operational
+
+❌ audit_manager: failed
+
+❌ file_storage: failed
