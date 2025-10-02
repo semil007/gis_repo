@@ -89,13 +89,13 @@ class QueueManager:
             queue_name: Name of the processing queue
         """
         # Get Redis configuration from environment or parameters
-        redis_url = redis_url or os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+        redis_url = redis_url or os.getenv('REDIS_URL', 'redis://redis:6379/0')
         redis_password = os.getenv('REDIS_PASSWORD', '')
         
         # Parse Redis URL
         try:
             parsed = urlparse(redis_url)
-            redis_host = parsed.hostname or 'localhost'
+            redis_host = parsed.hostname or 'redis'
             redis_port = parsed.port or 6379
             redis_db = int(parsed.path.lstrip('/')) if parsed.path else 0
             
@@ -105,8 +105,9 @@ class QueueManager:
                 'port': redis_port,
                 'db': redis_db,
                 'decode_responses': True,
-                'socket_connect_timeout': 5,
-                'socket_timeout': 5
+                'socket_connect_timeout': 10,
+                'socket_timeout': 10,
+                'retry_on_timeout': True
             }
             
             # Add password if provided
@@ -124,18 +125,23 @@ class QueueManager:
         self.status_prefix = f"{queue_name}:status:"
         self.progress_prefix = f"{queue_name}:progress:"
         
-        # Test Redis connection
-        try:
-            self.redis_client.ping()
-            logger.info(f"Connected to Redis at {redis_host}:{redis_port} (DB: {redis_db})")
-        except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis at {redis_host}:{redis_port}: {e}")
-            logger.error("Please check your Redis configuration in .env file")
-            raise
-        except redis.AuthenticationError as e:
-            logger.error(f"Redis authentication failed: {e}")
-            logger.error("Please check REDIS_PASSWORD in .env file")
-            raise
+        # Test Redis connection with retry
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                self.redis_client.ping()
+                logger.info(f"Connected to Redis at {redis_host}:{redis_port} (DB: {redis_db})")
+                break
+            except redis.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Redis connection attempt {attempt + 1} failed, retrying...")
+                    time.sleep(2)
+                else:
+                    logger.error(f"Failed to connect to Redis after {max_retries} attempts: {e}")
+                    raise
+            except redis.AuthenticationError as e:
+                logger.error(f"Redis authentication failed: {e}")
+                raise
     
     def enqueue_job(self, file_path: str, session_id: str, 
                    config: Dict[str, Any] = None) -> str:

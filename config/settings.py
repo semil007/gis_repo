@@ -19,7 +19,7 @@ TEMP_DIR = BASE_DIR / 'temp'
 DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{BASE_DIR}/data/app.db')
 
 # Redis settings
-REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 
 # Processing settings
 CONFIDENCE_THRESHOLD = 0.7
