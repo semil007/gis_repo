@@ -22,11 +22,15 @@ def init_databases():
     session_db_path = os.getenv('DATABASE_URL', 'sqlite:///processing_sessions.db')
     audit_db_path = os.getenv('AUDIT_DATABASE_URL', 'sqlite:///audit_data.db')
     
-    # Remove sqlite:/// prefix if present
-    if session_db_path.startswith('sqlite:///'):
+    # Remove sqlite:/// or sqlite://// prefix if present
+    if session_db_path.startswith('sqlite:////'):
+        session_db_path = session_db_path.replace('sqlite:////', '')
+    elif session_db_path.startswith('sqlite:///'):
         session_db_path = session_db_path.replace('sqlite:///', '')
     
-    if audit_db_path.startswith('sqlite:///'):
+    if audit_db_path.startswith('sqlite:////'):
+        audit_db_path = audit_db_path.replace('sqlite:////', '')
+    elif audit_db_path.startswith('sqlite:///'):
         audit_db_path = audit_db_path.replace('sqlite:///', '')
     
     print(f"\nSession database: {session_db_path}")
@@ -35,7 +39,7 @@ def init_databases():
     # Ensure parent directories exist
     for db_path in [session_db_path, audit_db_path]:
         parent_dir = Path(db_path).parent
-        if parent_dir != Path('.'):
+        if parent_dir != Path('.') and str(parent_dir) != '.':
             parent_dir.mkdir(parents=True, exist_ok=True)
             print(f"Created directory: {parent_dir}")
     

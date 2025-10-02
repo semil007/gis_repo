@@ -48,7 +48,7 @@ RUN python3 -m spacy download en_core_web_sm
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/uploads /app/downloads /app/temp /app/logs /app/cache
+RUN mkdir -p /app/uploads /app/downloads /app/temp /app/logs /app/cache /app/data
 
 # Set permissions
 RUN chmod +x scripts/*.sh
@@ -67,16 +67,32 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Create startup script
 USER root
 RUN echo '#!/bin/bash\n\
-# Initialize databases if they do not exist or are empty\n\
-if [ ! -s /app/processing_sessions.db ] || [ ! -s /app/audit_data.db ]; then\n\
-    echo "Initializing databases..."\n\
-    python3 /app/init_databases.py\n\
-fi\n\
-# Start the application\n\
-exec streamlit run app.py --server.port=8501 --server.address=0.0.0.0\n\
+set -e\n\
+\n\
+echo "Starting HMO Processor..."\n\
+\n\
+# Ensure data directory and database files exist with proper permissions\n\
+mkdir -p /app/data\n\
+for db_file in /app/data/processing_sessions.db /app/data/audit_data.db; do\n\
+    if [ ! -f "$db_file" ]; then\n\
+        echo "Creating $db_file..."\n\
+        touch "$db_file"\n\
+    fi\n\
+done\n\
+chown -R appuser:appuser /app/data\n\
+chmod -R 775 /app/data\n\
+\n\
+# Initialize databases if they are empty or not properly initialized\n\
+echo "Initializing databases..."\n\
+su - appuser -c "cd /app && python3 /app/init_databases.py" || true\n\
+\n\
+# Ensure proper ownership\n\
+chown -R appuser:appuser /app/data /app/uploads /app/downloads /app/temp /app/logs /app/cache\n\
+\n\
+# Start the application as appuser\n\
+echo "Starting Streamlit application..."\n\
+exec su - appuser -c "cd /app && streamlit run app.py --server.port=8501 --server.address=0.0.0.0"\n\
 ' > /app/start.sh && chmod +x /app/start.sh
-
-USER appuser
 
 # Default command
 CMD ["/app/start.sh"]

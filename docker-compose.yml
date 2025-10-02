@@ -31,13 +31,12 @@ services:
       - ./temp:/app/temp
       - ./logs:/app/logs
       - ./cache:/app/cache
-      - ./processing_sessions.db:/app/processing_sessions.db
-      - ./audit_data.db:/app/audit_data.db
+      - app_data:/app/data
     environment:
       - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:////app/processing_sessions.db
-      - AUDIT_DATABASE_URL=sqlite:////app/audit_data.db
+      - DATABASE_URL=sqlite:////app/data/processing_sessions.db
+      - AUDIT_DATABASE_URL=sqlite:////app/data/audit_data.db
       - UPLOAD_DIR=/app/uploads
       - DOWNLOAD_DIR=/app/downloads
       - TEMP_DIR=/app/temp
@@ -66,13 +65,12 @@ services:
       - ./temp:/app/temp
       - ./logs:/app/logs
       - ./cache:/app/cache
-      - ./processing_sessions.db:/app/processing_sessions.db
-      - ./audit_data.db:/app/audit_data.db
+      - app_data:/app/data
     environment:
       - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:////app/processing_sessions.db
-      - AUDIT_DATABASE_URL=sqlite:////app/audit_data.db
+      - DATABASE_URL=sqlite:////app/data/processing_sessions.db
+      - AUDIT_DATABASE_URL=sqlite:////app/data/audit_data.db
       - UPLOAD_DIR=/app/uploads
       - DOWNLOAD_DIR=/app/downloads
       - TEMP_DIR=/app/temp
@@ -85,6 +83,8 @@ services:
 
 volumes:
   redis_data:
+    driver: local
+  app_data:
     driver: local
 
 networks:
