@@ -7,26 +7,7 @@
 Application error: unable to open database file
 ```
 
-**Solution (10 seconds):**
-```bash
-python init_databases.py
-```
-
-Then restart your app:
-```bash
-streamlit run app.py
-```
-
----
-
-### Issue 2: Module Import Error
-```
-ModuleNotFoundError: No module named 'models'
-```
-
-## The Solution (30 seconds)
-
-Run this on your server:
+**Solution for Ubuntu Server (30 seconds):**
 
 ```bash
 cd ~/gis_repo
@@ -40,26 +21,59 @@ http://192.168.1.49:8501
 
 ---
 
-## Alternative (Manual Fix)
+### Issue 2: Module Import Error
+```
+ModuleNotFoundError: No module named 'models'
+```
 
-If the script doesn't work:
+**Solution:** Same as above - run the fix script:
 
 ```bash
 cd ~/gis_repo
+./scripts/fix-docker.sh
+```
+
+---
+
+## Alternative (Manual Fix)
+
+If the script doesn't work, run these commands:
+
+```bash
+cd ~/gis_repo
+
+# Stop containers
 docker-compose down
+
+# Create database files
+touch processing_sessions.db audit_data.db
+chmod 666 processing_sessions.db audit_data.db
+
+# Create directories
+mkdir -p uploads downloads temp logs cache
+chmod -R 777 uploads downloads temp logs cache
+
+# Rebuild and start
 docker-compose build --no-cache
 docker-compose up -d
+
+# Wait for startup
+sleep 10
+
+# Initialize databases
+docker-compose exec app python3 init_databases.py
 ```
 
 ---
 
 ## What Was Fixed
 
-✅ Added `PYTHONPATH=/app` to Dockerfile  
-✅ Added `PYTHONPATH=/app` to docker-compose.yml  
-✅ Changed app command to use `app.py` instead of `web/streamlit_app.py`  
-✅ Created proper `worker.py` entry point  
-✅ Fixed worker command in docker-compose.yml  
+✅ Database files are created before container starts  
+✅ Proper permissions set for database files (666)  
+✅ Required directories created (uploads, downloads, temp, logs, cache)  
+✅ Database schemas initialized automatically on startup  
+✅ Added `PYTHONPATH=/app` to Dockerfile and docker-compose.yml  
+✅ Created startup script to handle database initialization  
 
 ---
 
@@ -70,6 +84,13 @@ docker-compose up -d
 docker-compose ps
 
 # Should show all containers as "Up" or "Up (healthy)"
+
+# Check database files exist
+ls -lh *.db
+
+# Should show:
+# -rw-rw-rw- 1 user user [size] [date] audit_data.db
+# -rw-rw-rw- 1 user user [size] [date] processing_sessions.db
 ```
 
 Then open browser: `http://192.168.1.49:8501`
@@ -78,21 +99,68 @@ Then open browser: `http://192.168.1.49:8501`
 
 ## If Still Not Working
 
-See detailed guide: `DOCKER_FIX_GUIDE.md`
-
-Or check logs:
+**Check logs for specific errors:**
 ```bash
 docker-compose logs app
 docker-compose logs worker
 ```
 
+**Common issues:**
+
+1. **Permission denied on database files:**
+   ```bash
+   chmod 666 processing_sessions.db audit_data.db
+   docker-compose restart app worker
+   ```
+
+2. **Database files are empty:**
+   ```bash
+   docker-compose exec app python3 init_databases.py
+   docker-compose restart app
+   ```
+
+3. **Containers not starting:**
+   ```bash
+   docker-compose down
+   docker system prune -f
+   ./scripts/fix-docker.sh
+   ```
+
+See detailed guide: `DOCKER_FIX_GUIDE.md`
+
 ---
 
 ## Files Modified
 
-1. `Dockerfile` - Added PYTHONPATH
-2. `docker-compose.yml` - Added PYTHONPATH to services
-3. `worker.py` - Created (new file)
-4. `scripts/fix-docker.sh` - Created (new file)
+1. `Dockerfile` - Added startup script for database initialization
+2. `docker-compose.yml` - Volume mounts for database files
+3. `scripts/fix-docker.sh` - Database creation and initialization
+4. `QUICK_FIX.md` - Updated with Ubuntu server instructions
 
-All changes are already in your repository. Just rebuild!
+All changes are in your repository. Just run the fix script!
+
+---
+
+## Understanding the Fix
+
+The "unable to open database file" error occurs because:
+
+1. **Database files don't exist** - The SQLite database files need to be created on the host before Docker mounts them
+2. **Wrong permissions** - Database files need read/write permissions (666) for the container user
+3. **Empty database files** - Even if files exist, they need proper schema initialization
+
+**What the fix does:**
+
+1. Creates empty database files on the host system
+2. Sets proper permissions (666) so Docker containers can read/write
+3. Creates required directories (uploads, downloads, temp, logs, cache)
+4. Rebuilds Docker images with updated configuration
+5. Initializes database schemas inside the container
+6. Starts all services with proper environment variables
+
+**Why it works:**
+
+- Docker volume mounts require files to exist on the host first
+- The startup script checks if databases are empty and initializes them
+- Proper permissions allow the non-root container user to access files
+- Environment variables point to the correct database paths inside containers

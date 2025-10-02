@@ -48,7 +48,7 @@ RUN python3 -m spacy download en_core_web_sm
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p /app/uploads /app/downloads /app/temp /app/logs
+RUN mkdir -p /app/uploads /app/downloads /app/temp /app/logs /app/cache
 
 # Set permissions
 RUN chmod +x scripts/*.sh
@@ -64,5 +64,19 @@ EXPOSE 8501 8000 6379
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8501/_stcore/health || exit 1
 
+# Create startup script
+USER root
+RUN echo '#!/bin/bash\n\
+# Initialize databases if they do not exist or are empty\n\
+if [ ! -s /app/processing_sessions.db ] || [ ! -s /app/audit_data.db ]; then\n\
+    echo "Initializing databases..."\n\
+    python3 /app/init_databases.py\n\
+fi\n\
+# Start the application\n\
+exec streamlit run app.py --server.port=8501 --server.address=0.0.0.0\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+USER appuser
+
 # Default command
-CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["/app/start.sh"]

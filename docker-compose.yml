@@ -30,13 +30,14 @@ services:
       - ./downloads:/app/downloads
       - ./temp:/app/temp
       - ./logs:/app/logs
+      - ./cache:/app/cache
       - ./processing_sessions.db:/app/processing_sessions.db
       - ./audit_data.db:/app/audit_data.db
     environment:
       - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///app/processing_sessions.db
-      - AUDIT_DATABASE_URL=sqlite:///app/audit_data.db
+      - DATABASE_URL=sqlite:////app/processing_sessions.db
+      - AUDIT_DATABASE_URL=sqlite:////app/audit_data.db
       - UPLOAD_DIR=/app/uploads
       - DOWNLOAD_DIR=/app/downloads
       - TEMP_DIR=/app/temp
@@ -64,13 +65,14 @@ services:
       - ./downloads:/app/downloads
       - ./temp:/app/temp
       - ./logs:/app/logs
+      - ./cache:/app/cache
       - ./processing_sessions.db:/app/processing_sessions.db
       - ./audit_data.db:/app/audit_data.db
     environment:
       - PYTHONPATH=/app
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=sqlite:///app/processing_sessions.db
-      - AUDIT_DATABASE_URL=sqlite:///app/audit_data.db
+      - DATABASE_URL=sqlite:////app/processing_sessions.db
+      - AUDIT_DATABASE_URL=sqlite:////app/audit_data.db
       - UPLOAD_DIR=/app/uploads
       - DOWNLOAD_DIR=/app/downloads
       - TEMP_DIR=/app/temp
