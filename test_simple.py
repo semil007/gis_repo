@@ -6,6 +6,7 @@ Simple test script to verify the HMO processing system works.
 import asyncio
 import sys
 import logging
+
 from pathlib import Path
 
 # Add project root to Python path

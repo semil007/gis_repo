@@ -13,6 +13,8 @@ from .docx_processor import DOCXProcessor
 from .ocr_processor import OCRProcessor
 
 
+from nlp.nlp_pipeline import NLPPipeline
+
 class UnifiedDocumentProcessor(DocumentProcessor):
     """
     Unified document processor that automatically routes documents to appropriate
@@ -32,6 +34,12 @@ class UnifiedDocumentProcessor(DocumentProcessor):
         self.pdf_processor = PDFProcessor(config)
         self.docx_processor = DOCXProcessor(config)
         self.ocr_processor = OCRProcessor(config)
+        
+        # Initialize NLP pipeline
+        self.nlp_pipeline = NLPPipeline(
+            model_name=self.config.get('SPACY_MODEL', 'en_core_web_sm'),
+            require_gpu=self.config.get('NLP_REQUIRE_GPU', False)
+        )
         
         logger.info("Unified document processor initialized")
         
@@ -95,7 +103,12 @@ class UnifiedDocumentProcessor(DocumentProcessor):
                     
                     if result.status == ProcessingStatus.FAILED:
                         result.status = ProcessingStatus.PARTIAL
-                        
+            
+            # NLP processing
+            if result.extracted_text:
+                nlp_results = self.nlp_pipeline.process_text(result.extracted_text)
+                result.extracted_data['entities'] = nlp_results['entities']
+
             return result
             
         except Exception as e:

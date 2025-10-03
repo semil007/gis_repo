@@ -9,14 +9,30 @@ import time
 from typing import Optional, Dict, Any
 from datetime import datetime
 import uuid
+from pathlib import Path
+from loguru import logger
 
 # Import our processing components
 from models.processing_session import ProcessingSession
 from models.hmo_record import HMORecord
 from models.column_mapping import ColumnMapping
-from processors.unified_processor import UnifiedDocumentProcessor
+from processors.unified_processor import UnifiedDocumentProcessor, ProcessingStatus
 from services.data_validator import DataValidator
 from services.quality_assessment import QualityAssessment
+
+# --- Configuration ---
+TEMP_DIR = Path("temp_uploads")
+TEMP_DIR.mkdir(exist_ok=True)
+
+# --- Logging ---
+class StreamlitLogHandler:
+    def __init__(self, container):
+        self.container = container
+        self.buffer = ""
+
+    def write(self, message):
+        self.buffer += message
+        self.container.code(self.buffer, language='log')
 
 
 class StreamlitApp:
@@ -25,6 +41,7 @@ class StreamlitApp:
     def __init__(self):
         self.setup_page_config()
         self.initialize_session_state()
+        self.processor = UnifiedDocumentProcessor()
         
     def setup_page_config(self):
         """Configure Streamlit page settings."""
@@ -185,54 +202,39 @@ class StreamlitApp:
         """Render processing progress interface."""
         st.header("⚙️ Processing Document")
         
-        # Progress bar and status
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        log_container = st.empty()
+        log_handler = StreamlitLogHandler(log_container)
+        logger.add(log_handler.write, level="INFO")
+
+        st.subheader("📜 Processing Log")
         
-        # Simulate processing steps
-        processing_steps = [
-            "Analyzing document format...",
-            "Extracting text content...", 
-            "Detecting tables and structure...",
-            "Running NLP entity extraction...",
-            "Validating extracted data...",
-            "Generating confidence scores...",
-            "Creating CSV output..."
-        ]
-        
-        for i, step in enumerate(processing_steps):
-            progress = (i + 1) / len(processing_steps)
-            progress_bar.progress(progress)
-            status_text.text(f"Step {i+1}/{len(processing_steps)}: {step}")
-            time.sleep(0.5)  # Simulate processing time
+        try:
+            file_path = st.session_state.uploaded_file_path
+            results = self.processor.process_document_with_fallback(file_path)
             
-        # Complete processing
-        st.session_state.processing_status = 'completed'
-        st.session_state.processing_results = self.mock_processing_results()
-        st.rerun()
-        
-    def mock_processing_results(self) -> Dict[str, Any]:
-        """Generate mock processing results for demonstration."""
-        return {
-            'records': [
-                {
-                    'council': 'Test Council',
-                    'reference': 'HMO/2024/001',
-                    'hmo_address': '123 Test Street, Test City, TC1 2AB',
-                    'licence_start': '2024-01-01',
-                    'licence_expiry': '2025-01-01',
-                    'max_occupancy': 5,
-                    'confidence_scores': {
-                        'council': 0.95,
-                        'reference': 0.88,
-                        'hmo_address': 0.92
-                    }
+            if results.status in [ProcessingStatus.SUCCESS, ProcessingStatus.PARTIAL]:
+                st.session_state.processing_status = 'completed'
+                # This needs to be converted to a dict to be stored in session state
+                st.session_state.processing_results = {
+                    'records': [record.to_dict() for record in results.extracted_data],
+                    'avg_confidence': results.confidence_scores.get('average_confidence', 0),
+                    'processing_time': results.processing_metadata.get('total_time', 0),
+                    'flagged_records': results.flagged_fields
                 }
-            ],
-            'avg_confidence': 0.85,
-            'flagged_records': [],
-            'processing_time': 12.5
-        }
+            else:
+                st.session_state.processing_status = 'error'
+                st.session_state.error_message = results.error_messages[0] if results.error_messages else "Unknown processing error."
+
+        except Exception as e:
+            logger.error(f"An unexpected error occurred: {e}")
+            st.session_state.processing_status = 'error'
+            st.session_state.error_message = str(e)
+        
+        finally:
+            logger.remove()
+            st.rerun()
+        
+    
         
     def validate_uploaded_file(self, file) -> bool:
         """Validate uploaded file format and size."""
@@ -254,12 +256,27 @@ class StreamlitApp:
         """Start document processing workflow."""
         st.session_state.processing_status = 'processing'
         
+        # Save uploaded file to a temporary path
+        uploaded_file = st.session_state.uploaded_file
+        file_path = TEMP_DIR / f"{st.session_state.session_id}_{uploaded_file.name}"
+        
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+            
+        st.session_state.uploaded_file_path = file_path
+        
     def reset_session(self):
         """Reset session state to initial values."""
+        # Clean up old file
+        if 'uploaded_file_path' in st.session_state and os.path.exists(st.session_state.uploaded_file_path):
+            os.remove(st.session_state.uploaded_file_path)
+
         st.session_state.session_id = str(uuid.uuid4())
         st.session_state.processing_status = 'idle'
         st.session_state.uploaded_file = None
         st.session_state.processing_results = None
+        st.session_state.error_message = None
+        st.session_state.uploaded_file_path = None
         
     def render_results_interface(self):
         """Render results interface with extracted data and download options."""
@@ -317,7 +334,7 @@ class StreamlitApp:
     def render_error_interface(self):
         """Render error interface with recovery options."""
         st.header("❌ Processing Error")
-        st.error("An error occurred during document processing.")
+        st.error(st.session_state.get("error_message", "An unknown error occurred."))
         
         col1, col2 = st.columns(2)
         with col1:

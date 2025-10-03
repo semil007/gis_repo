@@ -31,7 +31,8 @@ TESSERACT_CONFIG = '--oem 3 --psm 6'
 OCR_LANGUAGES = ['eng']
 
 # NLP settings
-SPACY_MODEL = 'en_core_web_sm'
+SPACY_MODEL = 'en_core_web_trf'
+NLP_REQUIRE_GPU = True
 
 # Default column mappings
 DEFAULT_COLUMNS = [

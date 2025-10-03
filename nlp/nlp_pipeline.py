@@ -29,14 +29,16 @@ class NLPPipeline:
     custom entity recognition for HMO-specific terms.
     """
     
-    def __init__(self, model_name: str = "en_core_web_sm"):
+    def __init__(self, model_name: str = "en_core_web_sm", require_gpu: bool = False):
         """
         Initialize the NLP pipeline.
         
         Args:
             model_name: spaCy model to use (default: en_core_web_sm)
+            require_gpu: Whether to require GPU acceleration
         """
         self.model_name = model_name
+        self.require_gpu = require_gpu
         self.nlp = None
         self._load_model()
         self._setup_custom_patterns()
@@ -44,9 +46,12 @@ class NLPPipeline:
     def _load_model(self):
         """Load the spaCy model with error handling."""
         try:
+            if self.require_gpu:
+                spacy.require_gpu()
+                logger.info("GPU acceleration enabled for NLP pipeline")
             self.nlp = spacy.load(self.model_name)
             logger.info(f"Loaded spaCy model: {self.model_name}")
-        except OSError:
+        except (OSError, ImportError):
             logger.error(f"Model {self.model_name} not found. Please install it with: python -m spacy download {self.model_name}")
             # Fallback to blank model
             self.nlp = spacy.blank("en")
